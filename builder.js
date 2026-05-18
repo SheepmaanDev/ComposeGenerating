@@ -1,13 +1,26 @@
 function buildCompose(data) {
+    const ports = [`${data.portUI}:9443`]
+
+    if (data.edgeEnabled === true) {
+        ports.push(`${data.portEdge}:8000`)
+    }
+
+    const volumes = [
+        `${data.hostPath}`,
+        "/var/run/docker.sock:/var/run/docker.sock:ro"
+    ]
+
+    const environment = [`TZ=${data.timezone}`]
+
     const result = {
         services: {
             portainer: {
                 container_name: data.name,
                 image: "portainer/portainer-ce:latest",
                 restart: "unless-stopped",
-                ports: data.portsAll,
-                volumes: data.volumes,
-                environment: data.environment
+                ports,
+                volumes,
+                environment
             }
         }
     }
@@ -17,9 +30,23 @@ function buildCompose(data) {
 
 module.exports = buildCompose
 
+
+
+
+
+
+
+
+
+
+
+
+
 const data = {
     name: "portainer",
-    portsAll: ["9443:9443"],
-    volumes: ["./portainer/data:/data", "/var/run/docker.sock:/var/run/docker.sock"],
-    environment: ["TZ=Europe/Paris"]
+    portUI: 9443,
+    edgeEnabled: true,
+    portEdge: 8000,
+    hostPath: "/srv/portainer/data",
+    timezone: "Europe/Paris"
 }
