@@ -1,5 +1,7 @@
 {
+  "type": "module",
   "dependencies": {
+    "inquirer": "^13.4.3",
     "yaml": "^2.9.0"
   }
 }
