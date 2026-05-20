@@ -1,13 +1,10 @@
-// const askQuestions = require("./prompts.js")
 import inquirer from "inquirer"
 import askQuestions from "./prompts.js"
-import { input } from "@inquirer/prompts"
-import { type } from "node:os"
+import validate from "./validate.js"
 
 async function main() {
     try {
         const answers = await askQuestions()
-        // console.log(answers)
 
         console.log("\nRésumé des informations du docker :")
         console.log(` - Nom du docker     : ${answers.name}`)
@@ -16,17 +13,30 @@ async function main() {
         if (answers.edgeEnabled) {
             console.log(` - Port Edge         : ${answers.portEdge}`)
         }
-        console.log(` - Chemin du dossier : ${answers.hostPath}`)
-        console.log(`Confirmer ?`)
+        console.log(` - Chemin du dossier : ${answers.hostPath}\n`)
 
         const confirm = await inquirer.prompt([
             {
-                type: "input",
+                type: "confirm",
                 name: "confirmed",
-                message: "Es-tu sûr de ces informations ? (o/oui/y/yes/no/non/n)",
-                defaut: 
+                message: "Es-tu sûr de ces informations ?",
+                default: true
             }
         ])
+
+        const finalAnswers = {
+            ...answers,
+            confirmed: confirm.confirmed
+        }
+        if (!finalAnswers.confirmed) {
+            console.log("Opération annulée.")
+            return
+        } else {
+            console.log("Opération validée.")
+            // console.log(finalAnswers)
+            const validationResult = validate(finalAnswers)
+            console.log(validationResult)
+        }
     } catch (e) {
         console.error("Erreur :", e.message)
     }
