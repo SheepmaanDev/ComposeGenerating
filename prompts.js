@@ -51,10 +51,4 @@ async function askQuestions() {
     return answers
 }
 
-// async function askConfirmation () {
-//     const answers = await inquirer.prompt([
-
-//     ])
-// }
-
 export default askQuestions

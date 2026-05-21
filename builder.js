@@ -6,17 +6,17 @@ function buildCompose(data) {
     }
 
     const volumes = [
-        `${data.hostPath}`,
+        `${data.hostPath}:/data`,
         "/var/run/docker.sock:/var/run/docker.sock:ro"
     ]
 
-    const environment = [`TZ=${data.timezone}`]
+    const environment = [`TZ=Europe/Paris`]
 
     const result = {
         services: {
             portainer: {
                 container_name: data.name,
-                image: "portainer/portainer-ce:latest",
+                image: "portainer/portainer-ce:lts",
                 restart: "unless-stopped",
                 ports,
                 volumes,
@@ -24,11 +24,10 @@ function buildCompose(data) {
             }
         }
     }
-
     return result
 }
 
-module.exports = buildCompose
+export default buildCompose
 
 
 

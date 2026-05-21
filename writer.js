@@ -1,6 +1,6 @@
-const fs = require("fs").promises
-const path = require("path")
-const YAML = require("yaml")
+import fs from "node:fs/promises"
+import path from "path"
+import YAML from "yaml"
 
 async function writeCompose(composeObject, outputDir) {
     try {
@@ -16,4 +16,4 @@ async function writeCompose(composeObject, outputDir) {
     }
 }
 
-module.exports = writeCompose
+export default writeCompose
