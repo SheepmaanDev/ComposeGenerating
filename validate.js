@@ -27,7 +27,7 @@ async function validate(composeObject) {
         warnings.push({
             field: "hostPath",
             code: "NOT_EXIST_HOST_PATH",
-            message: "Le chemin du dossier n'éxiste pas.",
+            message: "Le chemin du dossier n'existe pas.",
             blocking: false
         })
     }

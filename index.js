@@ -5,6 +5,7 @@ import askQuestions from "./prompts.js"
 import validate from "./validate.js"
 import buildCompose from "./builder.js"
 import writeCompose from "./writer.js"
+import logger from "./logger.js"
 
 async function main() {
     try {
@@ -62,7 +63,7 @@ async function main() {
                             }
                         ])
                         if (createHostPath.confirmed) {
-                            fs.mkdirSync(validationResult.data.hostPath, { recursive: true })
+                            await fs.mkdir(validationResult.data.hostPath, { recursive: true })
                             console.log("Le dossier a bien été créé !")
                         } else {
                             console.log("Refus de création de dossier.")
@@ -72,11 +73,16 @@ async function main() {
             }
             console.log("Validation OK !")
             const composeObject = buildCompose(validationResult.data)
-            console.dir(composeObject, { depth: null })
             const finalPath = await writeCompose(composeObject, validationResult.data.hostPath)
-            console.log("Fichier créé à cet emplacement : " + finalPath)
+            console.log(`Fichier créé à cet emplacement : ${finalPath}`)
+            const logPath = await logger(composeObject, validationResult.data.hostPath, finalPath)
+            console.log(`Log créé à cet emplacement : ${logPath}`)
         }
     } catch (e) {
+        if (e.message.includes("FILE_ALREADY_EXISTS")) {
+            console.error("Un fichier docker-compose.yml existe déjà dans ce répertoire.")
+            return
+        }
         console.error("Erreur :", e.message)
     }
 }

@@ -28,24 +28,3 @@ function buildCompose(data) {
 }
 
 export default buildCompose
-
-
-
-
-
-
-
-
-
-
-
-
-
-const data = {
-    name: "portainer",
-    portUI: 9443,
-    edgeEnabled: true,
-    portEdge: 8000,
-    hostPath: "/srv/portainer/data",
-    timezone: "Europe/Paris"
-}
