@@ -1,30 +1,19 @@
-function buildCompose(data) {
-    const ports = [`${data.portUI}:9443`]
+import serviceRegistry from "./service-registry.js"
 
-    if (data.edgeEnabled === true) {
-        ports.push(`${data.portEdge}:8000`)
+function buildCompose(data) {
+    const selectedService = serviceRegistry[data.serviceId]
+
+    if (!selectedService) {
+        throw new Error("UNKNOWN_SERVICE")
     }
 
-    const volumes = [
-        `${data.hostPath}:/data`,
-        "/var/run/docker.sock:/var/run/docker.sock:ro"
-    ]
+    const serviceFragment = selectedService.buildComposeFragment(data)
 
-    const environment = [`TZ=Europe/Paris`]
-
-    const result = {
+    return {
         services: {
-            portainer: {
-                container_name: data.name,
-                image: "portainer/portainer-ce:lts",
-                restart: "unless-stopped",
-                ports,
-                volumes,
-                environment
-            }
+            [selectedService.id]: serviceFragment
         }
     }
-    return result
 }
 
 export default buildCompose

@@ -1,54 +1,32 @@
 import inquirer from "inquirer"
-import path from "path"
+
+import serviceRegistry from "./service-registry.js"
 
 async function askQuestions() {
-    const answers = await inquirer.prompt([
+    const serviceChoices = Object.values(serviceRegistry).map((service) => ({
+        name: service.label,
+        value: service.id
+    }))
+
+    const { serviceId } = await inquirer.prompt([
         {
-            type: "input",
-            name: "name",
-            message: "Nom du Docker",
-            default: "portainer"
-        },
-        {
-            type: "number",
-            name: "portUI",
-            message: "Port UI",
-            default: 9443
-        },
-        {
-            type: "confirm",
-            name: "edgeEnabled",
-            message: "Activer Edge ?",
-            default: false
-        },
-        {
-            type: "number",
-            name: "portEdge",
-            message: "PortEdge",
-            default: 8000,
-            when: (answers) => answers.edgeEnabled === true
-        },
-        {
-            type: "input",
-            name: "hostPath",
-            message: "Chemin du dossier sur l'hôte :",
-            default: "/srv/docker/portainer"
+            type: "rawlist",
+            name: "serviceId",
+            message: "Quel service veux-tu générer ?",
+            choices: serviceChoices
         }
     ])
 
-    if (answers.edgeEnabled !== true) {
-        answers.portEdge = null
+    const selectedService = serviceRegistry[serviceId]
+
+    const serviceAnswers = await inquirer.prompt(
+        selectedService.getQuestions()
+    )
+
+    return {
+        serviceId,
+        ...serviceAnswers
     }
-
-    answers.name = answers.name.trim().toLowerCase().replaceAll(" ", "-")
-    answers.hostPath = answers.hostPath.trim()
-    answers.hostPath = path.posix.normalize(answers.hostPath)
-
-    if (answers.hostPath !== "/") {
-        answers.hostPath = answers.hostPath.replace(/\/+$/, "")
-    }
-
-    return answers
 }
 
 export default askQuestions
