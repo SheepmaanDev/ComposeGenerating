@@ -2,27 +2,27 @@ import fs from "node:fs/promises"
 import path from "path"
 import YAML from "yaml"
 
-async function writeCompose(composeObject, outputDir) {
-    try {
-        const finalPath = path.join(outputDir, "docker-compose.yml")
-        const yamlContent = YAML.stringify(composeObject)
+async function writeCompose(composeObject, outputDir, options = {}) {
+    const { overwrite = false } = options
 
-        let fileAlreadyExists = false
-        try {
-            await fs.access(finalPath)
-            fileAlreadyExists = true
-        } catch {
-            fileAlreadyExists = false
-        }
-        if (fileAlreadyExists) {
-            throw new Error("FILE_ALREADY_EXISTS")
-        }
-        await fs.mkdir(outputDir, { recursive: true })
-        await fs.writeFile(finalPath, yamlContent, "utf8")
+    const finalPath = path.join(outputDir, "docker-compose.yml")
+    const yamlContent = YAML.stringify(composeObject)
+
+    await fs.mkdir(outputDir, { recursive: true })
+
+    try {
+        await fs.writeFile(finalPath, yamlContent, {
+            encoding: "utf8",
+            flag: overwrite ? "w" : "wx"
+        })
 
         return finalPath
     } catch (e) {
-        throw new Error(`Impossible d'écrire le fichier docker-compose, ${e.message}`)
+        if (e.code === "EEXIST") {
+            throw new Error("FILE_ALREADY_EXISTS")
+        }
+
+        throw new Error(`Impossible d'écrire le fichier docker-compose : ${e.message}`)
     }
 }
 

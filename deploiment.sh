@@ -2,6 +2,13 @@
 set -euo pipefail
 
 # =========================
+# Configuration
+# =========================
+GROUP_NAME="composegen"
+BASE_DIR="/srv/docker"
+ACL_PACKAGE="acl"
+
+# =========================
 # Couleurs
 # =========================
 RED='\033[0;31m'
@@ -13,11 +20,6 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # =========================
-# Variables fixes
-# =========================
-
-
-# =========================
 # Helpers UI
 # =========================
 info()    { echo -e "${CYAN}[INFO]${NC} $1"; }
@@ -27,9 +29,6 @@ error()   { echo -e "${RED}[ERR]${NC}  $1"; }
 step() {
     echo ""
     echo -e "${BOLD}${BLUE}==> $1${NC}"
-}
-mask() {
-    echo "$1" | sed 's/./*/g'
 }
 
 # =========================
@@ -57,47 +56,93 @@ find_bin() {
     return 1
 }
 
+require_bin() {
+    local value="$1"
+    local name="$2"
+
+    if [[ -z "$value" ]]; then
+        error "Binaire requis introuvable : $name"
+        exit 1
+    fi
+}
+
 # =========================
 # Vérifications préalables
 # =========================
 step "Vérifications préalables"
 
 if [[ $EUID -ne 0 ]]; then
-    error "Ce script doit être lancé en root."
+    error "Ce script doit être lancé avec sudo ou en root."
     exit 1
 fi
 success "Exécution en root confirmée"
 
-GROUPADD_BIN="$(find_bin groupadd /usr/sbin/groupadd /sbin/groupadd /usr/bin/groupadd || true)"
-if [[ -z "${GROUPADD_BIN}" ]]; then
-    error "groupadd n'est pas accessible dans le PATH."
-    info "Installe ou réinstalle le paquet : apt install --reinstall -y passwd"
-    info "Teste avec : /usr/sbin/groupadd --help"
+TARGET_USER="${SUDO_USER:-}"
+if [[ -z "${TARGET_USER}" || "${TARGET_USER}" == "root" ]]; then
+    error "Impossible de déterminer l'utilisateur cible."
+    info "Lance ce script avec sudo depuis ton utilisateur habituel."
     exit 1
 fi
-success "groupadd trouvé : ${GROUPADD_BIN}"
+success "Utilisateur cible détecté : ${TARGET_USER}"
 
-step "Mise à jour système & installation des outils pour CLI"
-apt-get update && apt-get install acl -y
-success "Système à jour & outils"
+GROUPADD_BIN="$(find_bin groupadd /usr/sbin/groupadd /sbin/groupadd /usr/bin/groupadd || true)"
+USERMOD_BIN="$(find_bin usermod /usr/sbin/usermod /sbin/usermod /usr/bin/usermod || true)"
+APTGET_BIN="$(find_bin apt-get /usr/bin/apt-get /bin/apt-get || true)"
 
-step "Création du groupe + ajout utilisateur courant"
-"${GROUPADD_BIN}" composegen
-"${USERMOD_BIN}" -aG composegen "$USER"
-success "Groupe créé et utiisateur ajouté"
+require_bin "${GROUPADD_BIN}" "groupadd"
+require_bin "${USERMOD_BIN}" "usermod"
+require_bin "${APTGET_BIN}" "apt-get"
+success "Binaires système détectés"
 
-step "Création des répertoires + application des droits"
-mkdir -p /srv/docker
-chown root:composegen /srv/docker
-chmod 2775 /srv/docker
-"${SETFACL_BIN}" -m g:composegen:rwx /srv/docker
-"${SETFACL_BIN}" -d -m g:composegen:rwx /srv/docker
-"${SETFACL_BIN}" -d -m o::rowx /srv/docker
-success "Répertoires et droits"
+# =========================
+# Installation ACL
+# =========================
+step "Installation des outils ACL"
 
-echo "=== Vérification ==="
-ls -ld /srv/docker
-getfacl /srv/docker
-id "$USER"
+"${APTGET_BIN}" update
+"${APTGET_BIN}" install -y "${ACL_PACKAGE}"
 
-echo "Reconnecte-toi ou lance newgrp composegen avant d'utiliser le CLI"
+SETFACL_BIN="$(find_bin setfacl /usr/bin/setfacl /bin/setfacl || true)"
+GETFACL_BIN="$(find_bin getfacl /usr/bin/getfacl /bin/getfacl || true)"
+
+require_bin "${SETFACL_BIN}" "setfacl"
+require_bin "${GETFACL_BIN}" "getfacl"
+success "ACL installé et binaires détectés"
+
+# =========================
+# Groupe + utilisateur
+# =========================
+step "Préparation du groupe partagé"
+
+"${GROUPADD_BIN}" -f "${GROUP_NAME}"
+"${USERMOD_BIN}" -aG "${GROUP_NAME}" "${TARGET_USER}"
+success "Groupe ${GROUP_NAME} prêt et utilisateur ${TARGET_USER} ajouté"
+
+# =========================
+# Répertoire partagé
+# =========================
+step "Préparation du répertoire partagé"
+
+mkdir -p "${BASE_DIR}"
+chown root:"${GROUP_NAME}" "${BASE_DIR}"
+chmod 2775 "${BASE_DIR}"
+
+"${SETFACL_BIN}" -m g:"${GROUP_NAME}":rwx "${BASE_DIR}"
+"${SETFACL_BIN}" -m o::--- "${BASE_DIR}"
+"${SETFACL_BIN}" -d -m g:"${GROUP_NAME}":rwx "${BASE_DIR}"
+"${SETFACL_BIN}" -d -m o::--- "${BASE_DIR}"
+success "Droits appliqués sur ${BASE_DIR}"
+
+# =========================
+# Vérifications
+# =========================
+step "Vérifications finales"
+
+ls -ld "${BASE_DIR}"
+"${GETFACL_BIN}" "${BASE_DIR}"
+id "${TARGET_USER}"
+
+echo ""
+warn "L'ajout au groupe ne s'applique pas toujours au shell courant."
+info "Reconnecte-toi ou lance : newgrp ${GROUP_NAME}"
+info "Ensuite, ton CLI pourra créer des dossiers dans ${BASE_DIR} sans sudo."

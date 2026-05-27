@@ -1,11 +1,14 @@
 import fs from "node:fs"
 import net from "node:net"
 
-async function validate(composeObject) {
+import serviceRegistry from "./service-registry.js"
+
+async function validate(answers) {
     const errors = []
     const warnings = []
+    let data = { ...answers }
 
-    if (composeObject.name === "") {
+    if (data.name === "") {
         errors.push({
             field: "name",
             code: "EMPTY_NAME",
@@ -13,7 +16,8 @@ async function validate(composeObject) {
             blocking: true
         })
     }
-    if (composeObject.hostPath === "" || composeObject.hostPath === ".") {
+
+    if (data.hostPath === "" || data.hostPath === ".") {
         errors.push({
             field: "hostPath",
             code: "INVALID_HOST_PATH",
@@ -22,7 +26,7 @@ async function validate(composeObject) {
         })
     }
 
-    const hostPathExists = fs.existsSync(composeObject.hostPath)
+    const hostPathExists = fs.existsSync(data.hostPath)
     if (!hostPathExists) {
         warnings.push({
             field: "hostPath",
@@ -31,61 +35,66 @@ async function validate(composeObject) {
             blocking: false
         })
     }
+
     if (hostPathExists) {
-        if (!fs.statSync(composeObject.hostPath).isDirectory()) {
+        if (!fs.statSync(data.hostPath).isDirectory()) {
             errors.push({
                 field: "hostPath",
                 code: "NOT_DIRECTORY_HOST_PATH",
-                message: "Le chemin du dossier n'est pas pas un répertoire.",
+                message: "Le chemin du dossier n'est pas un répertoire.",
                 blocking: true
             })
         }
     }
 
-    const isPortUIFormatValid = Number.isInteger(composeObject.portUI) && composeObject.portUI > 0
-    if (!isPortUIFormatValid) {
-        errors.push({
-            field: "portUI",
-            code: "INVALID_PORT_UI",
-            message: "Le port d'interface utilisateur doit être un entier positif.",
-            blocking: true
-        })
-    } else {
-        const resultPortAvailableUI = await isPortAvailable(composeObject.portUI)
-        if (!resultPortAvailableUI) {
+    if (data.portUI !== undefined) {
+        const isPortUIFormatValid = Number.isInteger(data.portUI) && data.portUI > 0
+
+        if (!isPortUIFormatValid) {
             errors.push({
                 field: "portUI",
-                code: "ALREADY_USED_PORT_UI",
-                message: "Le port d'interface utilisateur est déjà utilisé.",
-                blocking: true
-            })
-        }
-    }
-
-    const isPortEdgeFormatValid = Number.isInteger(composeObject.portEdge) && composeObject.portEdge > 0
-    if (composeObject.edgeEnabled === true) {
-        if (!isPortEdgeFormatValid) {
-            errors.push({
-                field: "portEdge",
-                code: "INVALID_PORT_EDGE",
-                message: "Le port Edge doit être un entier positif.",
+                code: "INVALID_PORT_UI",
+                message: "Le port d'interface utilisateur doit être un entier positif.",
                 blocking: true
             })
         } else {
-            const resultPortAvailableEdge = await isPortAvailable(composeObject.portEdge)
-            if (!resultPortAvailableEdge) {
+            const resultPortAvailableUI = await isPortAvailable(data.portUI)
+            if (!resultPortAvailableUI) {
                 errors.push({
-                    field: "portEdge",
-                    code: "ALREADY_USED_PORT_EDGE",
-                    message: "Le port Edge est déjà utilisé.",
+                    field: "portUI",
+                    code: "ALREADY_USED_PORT_UI",
+                    message: "Le port d'interface utilisateur est déjà utilisé.",
                     blocking: true
                 })
             }
         }
     }
 
+    const selectedService = serviceRegistry[data.serviceId]
+
+    if (!selectedService) {
+        errors.push({
+            field: "serviceId",
+            code: "UNKNOWN_SERVICE",
+            message: "Le service sélectionné est inconnu.",
+            blocking: true
+        })
+
+        return {
+            data,
+            errors,
+            warnings
+        }
+    }
+
+    const specificResult = selectedService.validateSpecific(data)
+    data = specificResult.data
+
+    errors.push(...specificResult.errors)
+    warnings.push(...specificResult.warnings)
+
     return {
-        data: composeObject,
+        data,
         errors,
         warnings
     }
@@ -95,12 +104,11 @@ async function isPortAvailable(port) {
     return new Promise((resolve) => {
         const server = net.createServer()
         server.once("error", (e) => {
-            if (e.code === 'EADDRINUSE') {
+            if (e.code === "EADDRINUSE") {
                 resolve(false)
                 return
-            } else {
-                resolve(false)
             }
+            resolve(false)
         })
         server.listen(port, () => {
             server.close(() => resolve(true))
